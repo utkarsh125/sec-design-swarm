@@ -12,13 +12,13 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
-    "@repo/db": "workspace:*",
+    "@sec-design-swarm/db": "workspace:*",
     "hono": "^4.7.11",
     "zod": "^3.25.36"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@sec-design-swarm/eslint-config": "workspace:*",
+    "@sec-design-swarm/typescript-config": "workspace:*",
     "@types/node": "^22",
     "eslint": "^9",
     "tsx": "^4.19.4",

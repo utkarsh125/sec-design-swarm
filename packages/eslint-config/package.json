@@ -1,5 +1,5 @@
 {
-  "name": "@repo/eslint-config",
+  "name": "@sec-design-swarm/eslint-config",
   "version": "0.0.0",
   "type": "module",
   "private": true,

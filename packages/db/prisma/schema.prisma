@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -8,4 +5,333 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// AUTHENTICATION — better-auth core tables
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+
+  // Domain relations
+  projects Project[]
+  analyses Analysis[]
+  apiKeys  ApiKey[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@map("verifications")
+}
+
+model ApiKey {
+  id        String    @id @default(cuid())
+  name      String
+  keyHash   String    @unique
+  prefix    String // first 8 chars for identification
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  revokedAt DateTime?
+  userId    String
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_keys")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  userId      String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses Analysis[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+enum AnalysisStatus {
+  QUEUED
+  PARSING
+  ANALYZING
+  SYNTHESIZING
+  COMPLETED
+  FAILED
+}
+
+model Analysis {
+  id               String         @id @default(cuid())
+  status           AnalysisStatus @default(QUEUED)
+  architectureSpec String // raw architecture text / markdown ingested
+  summaryReport    String? // final human-readable review report
+  riskScore        Float? // aggregate risk score 0-100
+  errorMessage     String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  projectId        String
+  userId           String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  components         Component[]
+  trustBoundaries    TrustBoundary[]
+  dataFlows          DataFlow[]
+  threats            Threat[]
+  complianceFindings ComplianceFinding[]
+  remediations       Remediation[]
+  agentRuns          AgentRun[]
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+  @@map("analyses")
+}
+
+enum ComponentType {
+  MICROSERVICE
+  DATABASE
+  MESSAGE_QUEUE
+  CACHE
+  API_GATEWAY
+  LOAD_BALANCER
+  CDN
+  THIRD_PARTY_API
+  STORAGE
+  FRONTEND
+  EXTERNAL_ACTOR
+  OTHER
+}
+
+model Component {
+  id          String        @id @default(cuid())
+  name        String
+  type        ComponentType
+  description String?
+  metadata    Json? // flexible props: ports, protocols, tech stack
+  analysisId  String
+  createdAt   DateTime      @default(now())
+
+  analysis    Analysis   @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  sourceFlows DataFlow[] @relation("SourceComponent")
+  targetFlows DataFlow[] @relation("TargetComponent")
+  threats     Threat[]
+
+  @@index([analysisId])
+  @@map("components")
+}
+
+model TrustBoundary {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  analysisId  String
+  createdAt   DateTime @default(now())
+
+  analysis  Analysis   @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  dataFlows DataFlow[]
+
+  @@index([analysisId])
+  @@map("trust_boundaries")
+}
+
+model DataFlow {
+  id                 String   @id @default(cuid())
+  label              String?
+  protocol           String? // e.g. HTTPS, gRPC, AMQP
+  isEncrypted        Boolean  @default(false)
+  isMutual           Boolean  @default(false) // mTLS
+  dataClassification String? // PII, SENSITIVE, PUBLIC
+  sourceId           String
+  targetId           String
+  trustBoundaryId    String? // null = within same boundary
+  analysisId         String
+  createdAt          DateTime @default(now())
+
+  source        Component      @relation("SourceComponent", fields: [sourceId], references: [id], onDelete: Cascade)
+  target        Component      @relation("TargetComponent", fields: [targetId], references: [id], onDelete: Cascade)
+  trustBoundary TrustBoundary? @relation(fields: [trustBoundaryId], references: [id], onDelete: SetNull)
+  analysis      Analysis       @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@map("data_flows")
+}
+
+enum StrideCategory {
+  SPOOFING
+  TAMPERING
+  REPUDIATION
+  INFORMATION_DISCLOSURE
+  DENIAL_OF_SERVICE
+  ELEVATION_OF_PRIVILEGE
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+model Threat {
+  id           String         @id @default(cuid())
+  title        String
+  description  String
+  category     StrideCategory
+  severity     Severity
+  affectedArea String? // e.g. "Service A → Database B boundary"
+  evidence     String? // reasoning / proof from agent
+  componentId  String?
+  analysisId   String
+  createdAt    DateTime       @default(now())
+
+  component    Component?    @relation(fields: [componentId], references: [id], onDelete: SetNull)
+  analysis     Analysis      @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  remediations Remediation[]
+
+  @@index([analysisId])
+  @@index([category])
+  @@index([severity])
+  @@map("threats")
+}
+
+enum ComplianceStatus {
+  PASS
+  FAIL
+  WARNING
+  NOT_APPLICABLE
+}
+
+model ComplianceFinding {
+  id          String           @id @default(cuid())
+  policyName  String // e.g. "TLS 1.3 Required", "JWT Signing"
+  description String
+  status      ComplianceStatus
+  details     String? // specific violation details
+  analysisId  String
+  createdAt   DateTime         @default(now())
+
+  analysis Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@index([status])
+  @@map("compliance_findings")
+}
+
+enum RemediationPriority {
+  IMMEDIATE
+  SHORT_TERM
+  LONG_TERM
+}
+
+model Remediation {
+  id          String              @id @default(cuid())
+  title       String
+  description String // concrete mitigation steps
+  priority    RemediationPriority
+  effort      String? // e.g. "2 sprint points", "1 day"
+  threatId    String?
+  analysisId  String
+  createdAt   DateTime            @default(now())
+
+  threat   Threat?  @relation(fields: [threatId], references: [id], onDelete: SetNull)
+  analysis Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@map("remediations")
+}
+
+enum AgentType {
+  STRUCTURAL_MAPPER
+  RED_TEAM_STRIDE
+  COMPLIANCE_AUDITOR
+  BLUE_TEAM_SYNTHESIZER
+}
+
+enum AgentRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model AgentRun {
+  id           String         @id @default(cuid())
+  agentType    AgentType
+  status       AgentRunStatus @default(RUNNING)
+  input        Json? // what was fed to the agent
+  output       Json? // raw agent output
+  durationMs   Int? // execution time
+  errorMessage String?
+  analysisId   String
+  startedAt    DateTime       @default(now())
+  completedAt  DateTime?
+
+  analysis Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@index([analysisId])
+  @@index([agentType])
+  @@map("agent_runs")
 }

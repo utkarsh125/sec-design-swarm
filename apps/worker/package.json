@@ -11,13 +11,13 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/db": "workspace:*",
+    "@sec-design-swarm/db": "workspace:*",
     "bullmq": "^5.56.0",
     "ioredis": "^5.6.1"
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
+    "@sec-design-swarm/eslint-config": "workspace:*",
+    "@sec-design-swarm/typescript-config": "workspace:*",
     "@types/node": "^22",
     "eslint": "^9",
     "tsx": "^4.19.4",

@@ -1,5 +1,5 @@
 {
-  "name": "@repo/db",
+  "name": "@sec-design-swarm/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -19,8 +19,8 @@
     "pg": "^8.16.0"
   },
   "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
-    "@types/node": "^22",
+    "@sec-design-swarm/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
     "prisma": "^7.8.0",
     "typescript": "5.9.2"
   }
